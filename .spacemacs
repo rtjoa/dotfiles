@@ -32,21 +32,23 @@ This function should only modify configuration layer settings."
 
    ;; List of configuration layers to load.
    dotspacemacs-configuration-layers
-   '(haskell
+   '(asciidoc
+     ocaml
+     haskell
      ;; ----------------------------------------------------------------
      ;; Example of useful layers you may want to use right away.
      ;; Uncomment some layer names and press `SPC f e R' (Vim style) or
      ;; `M-m f e R' (Emacs style) to install them.
      ;; ----------------------------------------------------------------
-     ;; auto-completion
+     auto-completion
      ;; better-defaults
      emacs-lisp
-     ;; git
+     git
      ;; helm
      ;; lsp
      ;; markdown
      multiple-cursors
-     ;; org
+     org
      (shell :variables
             ;; shell-default-shell 'ansi-term
             ;; shell-default-height 30
@@ -604,9 +606,18 @@ before packages are loaded."
   (define-key evil-motion-state-map (kbd "C-S-o") 'evil-jump-forward)
   (define-key evil-normal-state-map (kbd "C-S-o") 'evil-jump-forward)
   (define-key evil-insert-state-map (kbd "C-S-o") 'evil-jump-forward)
+  (with-eval-after-load "org"
+    (define-key org-mode-map (kbd "C-RET") 'org-insert-heading-respect-content))
   ;; (setq shell-command-switch "-ic")
   (setq dotspacemacs-mode-line-unicode-symbols nil)
   (setq ediff-window-setup-function 'ediff-setup-windows-default)
+
+  (setq org-adapt-indentation t)
+  (setq org-todo-keywords '((sequence "TODO" "|" "DONE" "FROZEN" "DELETED")))
+  (setq org-hide-emphasis-markers t)
+  (setq org-todo-keyword-faces
+        '(("FROZEN" . "cyan3")
+          ("DELETED" . "gray")))
   (defun stop-using-minibuffer () "kill minibuffer"
     (when
       (and (>= (recursion-depth) 1) (active-minibuffer-window))
@@ -628,8 +639,9 @@ This function is called at the very end of Spacemacs initialization."
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(org-agenda-files '("~/Dropbox/org/todo.org"))
  '(package-selected-packages
-   '(ac-ispell auto-complete auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
+   '(evil-org gnuplot htmlize org-cliplink org-contrib org-download org-mime org-pomodoro alert log4e gntp org-present org-category-capture org-rich-yank orgit-forge orgit adoc-mode dune flycheck-ocaml merlin-company merlin-eldoc merlin-iedit merlin ocamlformat ocp-indent utop tuareg caml forge yaml ghub closql emacsql treepy git-link git-messenger git-modes git-timemachine gitignore-templates smeargle treemacs-magit magit magit-section git-commit with-editor transient ac-ispell auto-complete auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
