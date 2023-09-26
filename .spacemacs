@@ -32,7 +32,8 @@ This function should only modify configuration layer settings."
 
    ;; List of configuration layers to load.
    dotspacemacs-configuration-layers
-   '(asciidoc
+   '(html
+     asciidoc
      ocaml
      haskell
      ;; ----------------------------------------------------------------
@@ -586,12 +587,21 @@ This function is called at the very end of Spacemacs startup, after layer
 configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
+  ;; (add-hook 'prog-mode-hook 'linum-on)
+
   (let ((path (shell-command-to-string ". ~/.zshrc; echo -n $PATH")))
     (setenv "PATH" path)
-    (setq exec-path 
+    (setq exec-path
           (append
            (split-string-and-unquote path ":")
            exec-path)))
+  (getenv "PATH")
+  (setenv "PATH"
+          (concat
+           "/Library/TeX/texbin" ":"
+
+           (getenv "PATH")))
+
   (spaceline-toggle-minor-modes-off)
   (defun run-script ()
     (interactive)
@@ -606,23 +616,176 @@ before packages are loaded."
   (define-key evil-motion-state-map (kbd "C-S-o") 'evil-jump-forward)
   (define-key evil-normal-state-map (kbd "C-S-o") 'evil-jump-forward)
   (define-key evil-insert-state-map (kbd "C-S-o") 'evil-jump-forward)
-  (with-eval-after-load "org"
-    (define-key org-mode-map (kbd "C-RET") 'org-insert-heading-respect-content))
-  ;; (setq shell-command-switch "-ic")
+  (defun stop-using-minibuffer () "kill minibuffer"
+         (when
+             (and (>= (recursion-depth) 1) (active-minibuffer-window))
+           (abort-recursive-edit)))
+
   (setq dotspacemacs-mode-line-unicode-symbols nil)
   (setq ediff-window-setup-function 'ediff-setup-windows-default)
+  (setq org-tags-column 0)
+  (setq org-agenda-tags-column 0)
 
+
+  ;; ORG MODE SETUP
+  (setq org-agenda-window-setup 'current-window)
+  (setq org-agenda-restore-windows-after-quit nil)
+  (with-eval-after-load "org"
+    (define-key org-mode-map (kbd "C-RET") 'org-insert-heading-respect-content))
   (setq org-adapt-indentation t)
-  (setq org-todo-keywords '((sequence "TODO" "|" "DONE" "FROZEN" "DELETED")))
+  (setq org-priority-highest ?A)
+  (setq org-default-priority ?B)
+  (setq org-priority-lowest ?D)
+  (setq org-priority-start-cycle-with-default nil)
+  ;; (setq org-priority-low)
+  (setq org-todo-keywords
+        '((sequence
+           "TODO(t)"
+           "HOT(h)"
+           "|"
+           "DONE(d)"
+           "FROZEN(f)"
+           "CANCELED(c)"
+           )))
+
+  ;; ORG MODE -- APPEARANCE
   (setq org-hide-emphasis-markers t)
   (setq org-todo-keyword-faces
-        '(("FROZEN" . "cyan3")
-          ("DELETED" . "gray")))
-  (defun stop-using-minibuffer () "kill minibuffer"
-    (when
-      (and (>= (recursion-depth) 1) (active-minibuffer-window))
-      (abort-recursive-edit)))
-  (add-hook 'mouse-leave-buffer-hook 'stop-using-minibuffer)
+        '(
+          ("HOT" . "white")
+          ("FROZEN" . "#33b5bd")
+          ("CANCELED" . "gray45")))
+  (custom-set-faces
+   '(org-imminent-deadline ((t :foreground "#ff628b" :bold t)))
+   '(org-upcoming-distant-deadline ((t :foreground "default")))
+   '(org-todo ((t :foreground "darkgray" :background "unspecified")))
+   '(org-done ((t :foreground "SeaGreen3")))
+   '(org-agenda-done ((t :foreground "gray45")))
+   '(org-todo-HOT ((t :weight utra-bold)))
+   '(org-priority ((t :foreground "blue")))
+   )
+  (custom-set-faces
+   '(org-level-1 ((t (:inherit outline-1 :height 1.0))))
+   '(org-level-2 ((t (:inherit outline-2 :height 1.0))))
+   '(org-level-3 ((t (:inherit outline-3 :height 1.0))))
+   '(org-level-4 ((t (:inherit outline-4 :height 1.0))))
+   '(org-level-5 ((t (:inherit outline-5 :height 1.0))))
+   )
+  (setq org-priority-faces '((?A . (:foreground "orchid1"))
+                             (?B . (:foreground "mediumpurple2"))
+                             (?C . (:foreground "mediumpurple2"))
+                             (?D . (:foreground "slateblue3"))))
+
+  ;; ORG MODE - ORDER TODOS WITH [SPC a g o]
+  (defun todo-to-int (todo)
+    (cl-position
+     todo
+     '(nil "HOT" "TODO" "FROZEN" "DONE" "CANCELED")
+     :test 'equal))
+  (defun my/org-sort-key ()
+    (let* ((todo (org-entry-get (point) "TODO"))
+           (todo-int (if todo (todo-to-int todo) 999))
+           (priority
+            ;; We don't do (org-entry-get (point) "PRIORITY") because we want to
+            ;; be able to detect when priority is unset
+            (nth 3 (org-heading-components)))
+           (priority-float
+            ;; Slightly prioritize unprioritized to get them to be
+            (if priority priority (- org-default-priority 0.5))))
+      (format "%03d %05.1f" todo-int priority-float)))
+
+  (defun my/org-sort-entries ()
+    (interactive)
+    (org-sort-entries nil ?f #'my/org-sort-key))
+
+  (defun my/sort-todos-file ()
+    (interactive)
+    (org-map-entries
+     '(org-sort-entries nil ?f #'my/org-sort-key)
+     t 'file)
+    )
+  (spacemacs/set-leader-keys "ago" #'my/sort-todos-file)
+
+  (setq org-agenda-start-on-weekday nil)
+
+  ;; ORG MODE - GO TO MY AGENDA WITH [SPC a g s]
+  (defun my-agenda ()
+    (interactive)
+    (org-agenda nil "n"))
+  (spacemacs/set-leader-keys "ags" 'my-agenda)
+
+  (require 'org-expiry)
+  ;; (setq org-treat-insert-todo-heading-as-state-change t)
+  (org-expiry-insinuate) (setq org-expiry-inactive-timestamps t)
+
+  ;; (advice-add 'org-insert-todo-heading :after #'org-expiry-insert-created)
+  ;; (advice-add 'org-insert-heading :after #'org-expiry-insert-created)
+
+  ;; ORG MODE - HOT FILES
+  (spacemacs/set-leader-keys "agt"
+    (lambda() (interactive)(find-file "~/Dropbox/org/todo.org")))
+
+  (spacemacs/set-leader-keys "agn"
+    (lambda() (interactive)
+    (find-file "~/Dropbox/org/todo.org")
+    (beginning-of-buffer)
+    (evil-org-org-insert-todo-heading-respect-content-below)))
+  (spacemacs/set-leader-keys "agd"
+    (lambda() (interactive)(find-file "~/Dropbox/org/done.org")))
+  (spacemacs/set-leader-keys "agi"
+    (lambda() (interactive)(find-file "~/Dropbox/org/inbox.org")))
+  
+  ;; ORG MODE - ORDER MY AGENDA
+  (defun my-org-sort-todo-state (a b)
+    (let ((state-a (get-text-property 14 'todo-state a))
+          (state-b (get-text-property 14 'todo-state b)))
+      (cond ((and (string= state-a "HOT")
+                  (not (string= state-b "HOT"))) -1)
+            ((and (not (string= state-a "HOT"))
+                  (string= state-b "HOT")) 1)
+            (t nil))))
+  (setq org-agenda-cmp-user-defined 'my-org-sort-todo-state)
+  (setq org-agenda-sorting-strategy
+        '(
+          (agenda
+           ;; my additions
+           user-defined-up
+           ;; end my additions
+           habit-down time-up priority-down category-keep)
+          (todo user-defined-up priority-down category-keep)
+          (tags priority-down category-keep)
+          (search category-keep))
+        )
+  (defun my-yank-org-link (text)
+    (if (derived-mode-p 'org-mode)
+        (insert text)
+      (string-match org-bracket-link-regexp text)
+      (insert (substring text (match-beginning 1) (match-end 1)))))
+
+  (defun my-org-retrieve-url-from-point ()
+    (interactive)
+    (let* ((link-info (assoc :link (org-context)))
+           (text (when link-info
+                   ;; org-context seems to return nil if the current element
+                   ;; starts at buffer-start or ends at buffer-end
+                   (buffer-substring-no-properties (or (cadr link-info) (point-min))
+                                                   (or (caddr link-info) (point-max))))))
+      (if (not text)
+          (error "Not in org link")
+        (add-text-properties 0 (length text) '(yank-handler (my-yank-org-link)) text)
+        (kill-new text))))
+  (defun farynaio/org-link-copy (&optional arg)
+    "Extract URL from org-mode link and add it to kill ring."
+    (interactive "P")
+    (let* ((link (org-element-lineage (org-element-context) '(link) t))
+           (type (org-element-property :type link))
+           (url (org-element-property :path link))
+           (url (concat type ":" url)))
+      (kill-new url)
+      (message (concat "Copied URL: " url))))
+
+  ;; (define-key org-mode-map (kbd "C-x C-l") 'farynaio/org-link-copy)
+
 
 )
 
@@ -639,13 +802,22 @@ This function is called at the very end of Spacemacs initialization."
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(org-agenda-files '("~/Dropbox/org/todo.org"))
+ '(org-agenda-files
+   '("~/Dropbox/org/inbox.org" "/Users/rtjoa/Dropbox/org/todo.org"))
  '(package-selected-packages
-   '(evil-org gnuplot htmlize org-cliplink org-contrib org-download org-mime org-pomodoro alert log4e gntp org-present org-category-capture org-rich-yank orgit-forge orgit adoc-mode dune flycheck-ocaml merlin-company merlin-eldoc merlin-iedit merlin ocamlformat ocp-indent utop tuareg caml forge yaml ghub closql emacsql treepy git-link git-messenger git-modes git-timemachine gitignore-templates smeargle treemacs-magit magit magit-section git-commit with-editor transient ac-ispell auto-complete auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
+   '(add-node-modules-path company-web web-completion-data counsel-css emmet-mode helm-css-scss impatient-mode simple-httpd prettier-js pug-mode sass-mode haml-mode scss-mode slim-mode tagedit web-beautify web-mode evil-org gnuplot htmlize org-cliplink org-contrib org-download org-mime org-pomodoro alert log4e gntp org-present org-category-capture org-rich-yank orgit-forge orgit adoc-mode dune flycheck-ocaml merlin-company merlin-eldoc merlin-iedit merlin ocamlformat ocp-indent utop tuareg caml forge yaml ghub closql emacsql treepy git-link git-messenger git-modes git-timemachine gitignore-templates smeargle treemacs-magit magit magit-section git-commit with-editor transient ac-ispell auto-complete auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(highlight-parentheses-highlight ((nil (:weight ultra-bold))) t))
+ '(highlight-parentheses-highlight ((nil (:weight ultra-bold))) t)
+ '(org-agenda-done ((t :foreground "gray45")))
+ '(org-done ((t :foreground "SeaGreen3")))
+ '(org-imminent-deadline ((t :foreground "#ff628b" :bold t)))
+ '(org-priority ((t :foreground "blue")))
+ '(org-todo ((t :foreground "darkgray" :background "unspecified")))
+ '(org-todo-HOT ((t :weight utra-bold)))
+ '(org-upcoming-deadline ((t :foreground "mediumpurple2" :bold t)))
+ '(org-upcoming-distant-deadline ((t :foreground "default"))))
 )
