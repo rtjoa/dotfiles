@@ -27,7 +27,7 @@ This function should only modify configuration layer settings."
    dotspacemacs-ask-for-lazy-installation t
 
    ;; List of additional paths where to look for configuration layers.
-   ;; Paths must have a trailing slash (i.e. `~/.mycontribs/')
+   ;; Paths must have a trailing slash (i.e. "~/.mycontribs/")
    dotspacemacs-configuration-layer-path '()
 
    ;; List of configuration layers to load.
@@ -66,7 +66,7 @@ This function should only modify configuration layer settings."
      ;; auto-completion
 
      ;; fzf
-     pdf
+     ;; pdf
      treemacs
 
 
@@ -237,7 +237,6 @@ It should only modify the values of Spacemacs settings."
    ;; is not installed. (default nil)
    dotspacemacs-startup-buffer-show-icons nil
 
-
    ;; Default major mode for a new empty buffer. Possible values are mode
    ;; names such as `text-mode'; and `nil' to use Fundamental mode.
    ;; (default `text-mode')
@@ -383,12 +382,12 @@ It should only modify the values of Spacemacs settings."
 
    ;; If non-nil the frame is maximized when Emacs starts up.
    ;; Takes effect only if `dotspacemacs-fullscreen-at-startup' is nil.
-   ;; (default nil) (Emacs 24.4+ only)
-   dotspacemacs-maximized-at-startup nil
+   ;; (default t) (Emacs 24.4+ only)
+   dotspacemacs-maximized-at-startup t
 
    ;; If non-nil the frame is undecorated when Emacs starts up. Combine this
-   ;; variable with `dotspacemacs-maximized-at-startup' in OSX to obtain
-   ;; borderless fullscreen. (default nil)
+   ;; variable with `dotspacemacs-maximized-at-startup' to obtain fullscreen
+   ;; without external boxes. Also disables the internal border. (default nil)
    dotspacemacs-undecorated-at-startup nil
 
    ;; A value from the range (0..100), in increasing opacity, which describes
@@ -400,6 +399,11 @@ It should only modify the values of Spacemacs settings."
    ;; the transparency level of a frame when it's inactive or deselected.
    ;; Transparency can be toggled through `toggle-transparency'. (default 90)
    dotspacemacs-inactive-transparency 90
+
+   ;; A value from the range (0..100), in increasing opacity, which describes the
+   ;; transparency level of a frame background when it's active or selected. Transparency
+   ;; can be toggled through `toggle-background-transparency'. (default 90)
+   dotspacemacs-background-transparency 90
 
    ;; If non-nil show the titles of transient states. (default t)
    dotspacemacs-show-transient-state-title t
@@ -601,7 +605,10 @@ before packages are loaded."
            "/Library/TeX/texbin" ":"
 
            (getenv "PATH")))
-
+  
+  ;; (global-visual-line-mode t)
+  (spacemacs/toggle-visual-line-navigation-globally-on)
+  
   (spaceline-toggle-minor-modes-off)
   (defun run-script ()
     (interactive)
@@ -613,6 +620,7 @@ before packages are loaded."
     )
   (spacemacs/set-leader-keys "om" 'run-script)
   (setq scroll-margin 8)
+  (setq doc-view-resolution 200)
   (define-key evil-motion-state-map (kbd "C-S-o") 'evil-jump-forward)
   (define-key evil-normal-state-map (kbd "C-S-o") 'evil-jump-forward)
   (define-key evil-insert-state-map (kbd "C-S-o") 'evil-jump-forward)
@@ -622,7 +630,7 @@ before packages are loaded."
            (abort-recursive-edit)))
 
   (setq dotspacemacs-mode-line-unicode-symbols nil)
-  (setq ediff-window-setup-function 'ediff-setup-windows-default)
+  ;; (setq ediff-window-setup-function 'ediff-setup-windows-default)
   (setq org-tags-column 0)
   (setq org-agenda-tags-column 0)
 
@@ -705,6 +713,7 @@ before packages are loaded."
      t 'file)
     )
   (spacemacs/set-leader-keys "ago" #'my/sort-todos-file)
+  (global-unset-key (kbd "s-t"))
 
   (setq org-agenda-start-on-weekday nil)
 
@@ -714,17 +723,47 @@ before packages are loaded."
     (org-agenda nil "n"))
   (spacemacs/set-leader-keys "ags" 'my-agenda)
 
+  (defun random-cmp (a b)
+    (cond
+     ((< (random) (random)) -1)
+     (t 1)))
+
+  (setq org-agenda-custom-commands
+    '(("n" "Agenda, all TODOs, randomized x"
+      (
+       (agenda #1="")
+       (alltodo #1=""
+                ((org-agenda-max-entries 5)
+                 (org-agenda-cmp-user-defined 'random-cmp)))
+       (alltodo #1#)
+       ;; (alltodo #1#
+       ;;          ((org-agenda-cmp-user-defined #'org-random-cmp)))
+       ))))
+
+  ;; ORG MODE - automatically insert CREATED to TODOS
   (require 'org-expiry)
   ;; (setq org-treat-insert-todo-heading-as-state-change t)
-  (org-expiry-insinuate) (setq org-expiry-inactive-timestamps t)
+  ;; (org-expiry-insinuate) (setq org-expiry-inactive-timestamps t)
 
-  ;; (advice-add 'org-insert-todo-heading :after #'org-expiry-insert-created)
+
+  (defun my-insert-inactive-created-timestamp ()
+    "Insert a CREATED property with an inactive timestamp."
+    (interactive)
+    (let ((created-string (format-time-string "[%Y-%m-%d %a %H:%M]")))
+      (org-set-property "CREATED" created-string)))
+
+  (advice-add 'org-insert-todo-heading :after
+              (lambda (&rest args) (my-insert-inactive-created-timestamp)))
+  ;; (advice-add 'org-insert-todo-heading :after
+  ;;             (lambda (&rest args) (org-expiry-insert-created)))
   ;; (advice-add 'org-insert-heading :after #'org-expiry-insert-created)
 
   ;; ORG MODE - HOT FILES
   (spacemacs/set-leader-keys "agt"
     (lambda() (interactive)(find-file "~/Dropbox/org/todo.org")))
 
+  (spacemacs/set-leader-keys "agg"
+    (lambda() (interactive)(find-file "~/Dropbox/org/goals.org")))
   (spacemacs/set-leader-keys "agn"
     (lambda() (interactive)
     (find-file "~/Dropbox/org/todo.org")
@@ -803,7 +842,7 @@ This function is called at the very end of Spacemacs initialization."
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(org-agenda-files
-   '("~/Dropbox/org/inbox.org" "/Users/rtjoa/Dropbox/org/todo.org"))
+   '("~/Dropbox/org/goals.org" "/Users/rtjoa/Dropbox/org/tag_hierarchy.org" "/Users/rtjoa/Dropbox/org/class.org" "/Users/rtjoa/Dropbox/org/inbox.org" "/Users/rtjoa/Dropbox/org/todo.org"))
  '(package-selected-packages
    '(add-node-modules-path company-web web-completion-data counsel-css emmet-mode helm-css-scss impatient-mode simple-httpd prettier-js pug-mode sass-mode haml-mode scss-mode slim-mode tagedit web-beautify web-mode evil-org gnuplot htmlize org-cliplink org-contrib org-download org-mime org-pomodoro alert log4e gntp org-present org-category-capture org-rich-yank orgit-forge orgit adoc-mode dune flycheck-ocaml merlin-company merlin-eldoc merlin-iedit merlin ocamlformat ocp-indent utop tuareg caml forge yaml ghub closql emacsql treepy git-link git-messenger git-modes git-timemachine gitignore-templates smeargle treemacs-magit magit magit-section git-commit with-editor transient ac-ispell auto-complete auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
 (custom-set-faces
@@ -815,6 +854,11 @@ This function is called at the very end of Spacemacs initialization."
  '(org-agenda-done ((t :foreground "gray45")))
  '(org-done ((t :foreground "SeaGreen3")))
  '(org-imminent-deadline ((t :foreground "#ff628b" :bold t)))
+ '(org-level-1 ((t (:inherit outline-1 :height 1.0))))
+ '(org-level-2 ((t (:inherit outline-2 :height 1.0))))
+ '(org-level-3 ((t (:inherit outline-3 :height 1.0))))
+ '(org-level-4 ((t (:inherit outline-4 :height 1.0))))
+ '(org-level-5 ((t (:inherit outline-5 :height 1.0))))
  '(org-priority ((t :foreground "blue")))
  '(org-todo ((t :foreground "darkgray" :background "unspecified")))
  '(org-todo-HOT ((t :weight utra-bold)))
