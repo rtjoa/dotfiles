@@ -32,7 +32,8 @@ This function should only modify configuration layer settings."
 
    ;; List of configuration layers to load.
    dotspacemacs-configuration-layers
-   '(html
+   '(javascript
+     html
      asciidoc
      ocaml
      haskell
@@ -41,7 +42,8 @@ This function should only modify configuration layer settings."
      ;; Uncomment some layer names and press `SPC f e R' (Vim style) or
      ;; `M-m f e R' (Emacs style) to install them.
      ;; ----------------------------------------------------------------
-     auto-completion
+     (auto-completion :variables
+                      )
      ;; better-defaults
      emacs-lisp
      git
@@ -71,7 +73,8 @@ This function should only modify configuration layer settings."
 
 
      evil-snipe
-
+     ;; (julia :variables julia-backend 'lsp)
+     julia
      )
 
 
@@ -83,7 +86,9 @@ This function should only modify configuration layer settings."
    ;; `dotspacemacs/user-config'. To use a local version of a package, use the
    ;; `:location' property: '(your-package :location "~/path/to/your-package/")
    ;; Also include the dependencies as they will not be resolved automatically.
-   dotspacemacs-additional-packages '()
+   dotspacemacs-additional-packages '(
+                                      org-super-agenda
+                                      )
 
    ;; A list of packages that cannot be updated.
    dotspacemacs-frozen-packages '()
@@ -592,13 +597,35 @@ configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
   ;; (add-hook 'prog-mode-hook 'linum-on)
+  ;; (add-hook 'coq-mode-hook #'opam-switch-mode)
+  ;; (add-hook 'tuareg-mode-hook #'opam-switch-mode)
+  (add-hook 'tuareg-mode-hook
+            (lambda()
+              (electric-indent-mode 0)
+              ))
+  (setq tab-always-indent t)
+  (custom-set-faces
+   '(merlin-eldoc-occurrences-face ((t :background "#243a4a" :bold t)))
+   )
 
+  (use-package opam-switch-mode
+    :ensure t
+    :hook
+    ((coq-mode tuareg-mode) . opam-switch-mode))
   (let ((path (shell-command-to-string ". ~/.zshrc; echo -n $PATH")))
     (setenv "PATH" path)
     (setq exec-path
           (append
            (split-string-and-unquote path ":")
            exec-path)))
+  (use-package ocamlformat
+    :custom (ocamlformat-enable 'enable-outside-detected-project)
+    :hook (before-save . ocamlformat-before-save)
+    )
+
+
+  ;; (setq auto-completion-return-key-behavior nil)
+
   (getenv "PATH")
   (setenv "PATH"
           (concat
@@ -606,6 +633,7 @@ before packages are loaded."
 
            (getenv "PATH")))
   
+  ; (setq spacemacs-yank-indent-threshold 0)
   ;; (global-visual-line-mode t)
   (spacemacs/toggle-visual-line-navigation-globally-on)
   
@@ -634,7 +662,34 @@ before packages are loaded."
   (setq org-tags-column 0)
   (setq org-agenda-tags-column 0)
 
+  ;; ORG MODE REMOVE EXTRA LINE FROM AGENDA
+  (defun remove-agenda-header ()
+    (save-excursion
+      (goto-char (point-min))
+      (let ((case-fold-search nil))
+        (while (re-search-forward "Global list of TODO items of type: ALL" nil t)
+          (delete-region (line-beginning-position) 
+                         (1+ (line-end-position))))))) ; Include the newline character
+  (defun remove-horizontal-line ()
+    (save-excursion
+      (goto-char (point-min))
+      (let ((case-fold-search nil))
+        (while (re-search-forward "─+" nil t)
+          (delete-region (line-beginning-position) 
+                         (1+ (line-end-position))))))) ; Include the newline character
+  (defun remove-day-agenda-lines ()
+    (save-excursion
+      (goto-char (point-min))
+      (let ((case-fold-search nil))
+        (while (re-search-forward "^Day-agenda.*" nil t)
+          (delete-region (line-beginning-position) 
+                         (1+ (line-end-position))))))) ; Include the newline character
 
+  ;; (add-hook 'org-agenda-finalize-hook 'remove-agenda-header)
+  (add-hook 'org-agenda-finalize-hook 'remove-horizontal-line)
+  ;; (add-hook 'org-agenda-finalize-hook 'remove-day-agenda-lines)
+
+  
   ;; ORG MODE SETUP
   (setq org-agenda-window-setup 'current-window)
   (setq org-agenda-restore-windows-after-quit nil)
@@ -644,15 +699,16 @@ before packages are loaded."
   (setq org-priority-highest ?A)
   (setq org-default-priority ?B)
   (setq org-priority-lowest ?D)
+  (setq org-deadline-warning-days 7)
   (setq org-priority-start-cycle-with-default nil)
   ;; (setq org-priority-low)
   (setq org-todo-keywords
         '((sequence
            "TODO(t)"
            "HOT(h)"
+           "FROZEN(f)"
            "|"
            "DONE(d)"
-           "FROZEN(f)"
            "CANCELED(c)"
            )))
 
@@ -728,17 +784,86 @@ before packages are loaded."
      ((< (random) (random)) -1)
      (t 1)))
 
+
+  (defun org-agenda-compare-by-created (a b)
+    "Compare two org agenda items A and B by their CREATED property.
+   Items without a CREATED property are considered older."
+    (let* ((a-created (or (org-entry-get (get-text-property 0 'org-marker a) "CREATED") ""))
+           (b-created (or (org-entry-get (get-text-property 0 'org-marker b) "CREATED") "")))
+      (cond
+       ((and (string-empty-p a-created)
+             (string-empty-p b-created)) 0) ; both have no CREATED property, consider them equal
+       ((string-empty-p a-created) -1) ; A has no CREATED, consider it older
+       ((string-empty-p b-created) 1) ; B has no CREATED, consider it older
+       ((string< a-created b-created) -1)
+       ((string= a-created b-created) 0)
+       (t 1)))) ; otherwise compare by CREATED property
+
+  (defun my-random-canceled-items (limit)
+    (let ((all-canceled-items (org-agenda-get-day-entries
+                               (org-agenda-files) (current-time) :todo '("CANCELED"))))
+      (when (> (length all-canceled-items) limit)
+        (setq all-canceled-items (cl-subseq all-canceled-items 0 limit)))
+      (shuffle-vector all-canceled-items)))
+
+  
   (setq org-agenda-custom-commands
-    '(("n" "Agenda, all TODOs, randomized x"
-      (
-       (agenda #1="")
-       (alltodo #1=""
-                ((org-agenda-max-entries 5)
-                 (org-agenda-cmp-user-defined 'random-cmp)))
-       (alltodo #1#)
-       ;; (alltodo #1#
-       ;;          ((org-agenda-cmp-user-defined #'org-random-cmp)))
-       ))))
+      '(
+        ("x" "Agenda, all TODOs, randomized x"
+        (
+        (agenda "" ((org-agenda-span 'day)))
+        (alltodo ""
+                  ((org-agenda-max-entries 5)
+                  ;; (org-agenda-cmp-user-defined 'random-cmp)))
+                  (org-agenda-cmp-user-defined 'org-agenda-compare-by-created)))
+        (alltodo "")
+        ;; (alltodo #1#
+        ;;          ((org-agenda-cmp-user-defined #'org-random-cmp)))
+        ))
+        ("n" "Superagenda"
+         (
+          (agenda "" ((org-agenda-span 'day)))
+          (alltodo ""
+                    ((org-agenda-overriding-header "") ; Random
+                     (org-agenda-skip-function '(org-agenda-skip-entry-if 'nottodo '("FROZEN")))
+                     (org-agenda-max-entries 2)
+                     (org-agenda-cmp-user-defined 'random-cmp)))
+          (alltodo ""
+                   ((org-agenda-overriding-header "") ; Most neglected
+                    (org-agenda-skip-function '(org-agenda-skip-entry-if 'todo '("FROZEN")))
+                     (org-agenda-max-entries 5)
+                    (org-agenda-cmp-user-defined 'org-agenda-compare-by-created)))
+          (alltodo "" ((org-agenda-overriding-header "")
+                    (org-super-agenda-groups
+                     '(
+                       (:name none :todo "HOT")
+                       ; Most important
+                       (:name none :and (:priority "A" :deadline nil :not (:todo "FROZEN")))
+                       (:name none :and (:priority "A" :not (:todo "FROZEN")))
+                       ; Unassigned
+                       (:name none :and (:not (:priority<= "A") :deadline nil :not (:todo "FROZEN")))
+                       (:name none :and (:not (:priority<= "A") :not (:todo "FROZEN")))
+                       (:name none :and (:priority "B" :deadline nil :not (:todo "FROZEN")))
+                       (:name none :and (:priority "B" :not (:todo "FROZEN")))
+                       ; Important
+                       (:name none :and (:priority "C" :deadline nil :not (:todo "FROZEN")))
+                       (:name none :and (:priority "C" :not (:todo "FROZEN")))
+                       ; Less important
+                       (:name none :and (:priority "D" :deadline nil :not (:todo "FROZEN")))
+                       (:name none :and (:priority "D" :not (:todo "FROZEN")))
+                       ; FROZEN
+                       (:name none :todo "FROZEN")
+                       ))))))))
+
+
+
+                       ;; (:name "Random Canceled Tasks"
+                       ;;    :todo "CANCELED"
+                       ;;    :transformer (my-random-canceled-items 5))
+                       ;; ;
+                       ;; (:name "Frozen" :todo "FROZEN")
+
+  (org-super-agenda-mode)
 
   ;; ORG MODE - automatically insert CREATED to TODOS
   (require 'org-expiry)
@@ -773,7 +898,7 @@ before packages are loaded."
     (lambda() (interactive)(find-file "~/Dropbox/org/done.org")))
   (spacemacs/set-leader-keys "agi"
     (lambda() (interactive)(find-file "~/Dropbox/org/inbox.org")))
-  
+
   ;; ORG MODE - ORDER MY AGENDA
   (defun my-org-sort-todo-state (a b)
     (let ((state-a (get-text-property 14 'todo-state a))
@@ -784,13 +909,15 @@ before packages are loaded."
                   (string= state-b "HOT")) 1)
             (t nil))))
   (setq org-agenda-cmp-user-defined 'my-org-sort-todo-state)
+
   (setq org-agenda-sorting-strategy
         '(
           (agenda
            ;; my additions
            user-defined-up
            ;; end my additions
-           habit-down time-up priority-down category-keep)
+           habit-down
+           time-up priority-down category-keep)
           (todo user-defined-up priority-down category-keep)
           (tags priority-down category-keep)
           (search category-keep))
@@ -824,7 +951,49 @@ before packages are loaded."
       (message (concat "Copied URL: " url))))
 
   ;; (define-key org-mode-map (kbd "C-x C-l") 'farynaio/org-link-copy)
-
+  ;; (org-super-agenda)
+(let ((org-super-agenda-groups
+       '(;; Each group has an implicit boolean OR operator between its selectors.
+         (:name "Today"  ; Optionally specify section name
+                :time-grid t  ; Items that appear on the time grid
+                :todo "TODAY")  ; Items that have this TODO keyword
+         (:name "Important"
+                ;; Single arguments given alone
+                :tag "bills"
+                :priority "A")
+         ;; Set order of multiple groups at once
+         (:order-multi (2 (:name "Shopping in town"
+                                 ;; Boolean AND group matches items that match all subgroups
+                                 :and (:tag "shopping" :tag "@town"))
+                          (:name "Food-related"
+                                 ;; Multiple args given in list with implicit OR
+                                 :tag ("food" "dinner"))
+                          (:name "Personal"
+                                 :habit t
+                                 :tag "personal")
+                          (:name "Space-related (non-moon-or-planet-related)"
+                                 ;; Regexps match case-insensitively on the entire entry
+                                 :and (:regexp ("space" "NASA")
+                                               ;; Boolean NOT also has implicit OR between selectors
+                                               :not (:regexp "moon" :tag "planet")))))
+         ;; Groups supply their own section names when none are given
+         (:todo "WAITING" :order 8)  ; Set order of this section
+         (:todo ("SOMEDAY" "TO-READ" "CHECK" "TO-WATCH" "WATCHING")
+                ;; Show this group at the end of the agenda (since it has the
+                ;; highest number). If you specified this group last, items
+                ;; with these todo keywords that e.g. have priority A would be
+                ;; displayed in that group instead, because items are grouped
+                ;; out in the order the groups are listed.
+                :order 9)
+         (:priority<= "B"
+                      ;; Show this section after "Today" and "Important", because
+                      ;; their order is unspecified, defaulting to 0. Sections
+                      ;; are displayed lowest-number-first.
+                      :order 1)
+         ;; After the last group, the agenda will display items that didn't
+         ;; match any of these groups, with the default order position of 99
+         )))
+  (org-agenda nil "a"))
 
 )
 
@@ -844,7 +1013,7 @@ This function is called at the very end of Spacemacs initialization."
  '(org-agenda-files
    '("~/Dropbox/org/goals.org" "/Users/rtjoa/Dropbox/org/tag_hierarchy.org" "/Users/rtjoa/Dropbox/org/class.org" "/Users/rtjoa/Dropbox/org/inbox.org" "/Users/rtjoa/Dropbox/org/todo.org"))
  '(package-selected-packages
-   '(add-node-modules-path company-web web-completion-data counsel-css emmet-mode helm-css-scss impatient-mode simple-httpd prettier-js pug-mode sass-mode haml-mode scss-mode slim-mode tagedit web-beautify web-mode evil-org gnuplot htmlize org-cliplink org-contrib org-download org-mime org-pomodoro alert log4e gntp org-present org-category-capture org-rich-yank orgit-forge orgit adoc-mode dune flycheck-ocaml merlin-company merlin-eldoc merlin-iedit merlin ocamlformat ocp-indent utop tuareg caml forge yaml ghub closql emacsql treepy git-link git-messenger git-modes git-timemachine gitignore-templates smeargle treemacs-magit magit magit-section git-commit with-editor transient ac-ispell auto-complete auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
+   '(import-js grizzl js-doc js2-refactor multiple-cursors livid-mode nodejs-repl npm-mode skewer-mode js2-mode tern opam-switch-mode org-super-agenda dap-mode lsp-docker bui ron-mode rustic rust-mode toml-mode flycheck-pos-tip pos-tip julia-repl lsp-ivy lsp-julia julia-mode lsp-origami origami lsp-treemacs lsp-ui add-node-modules-path company-web web-completion-data counsel-css emmet-mode helm-css-scss impatient-mode simple-httpd prettier-js pug-mode sass-mode haml-mode scss-mode slim-mode tagedit web-beautify web-mode evil-org gnuplot htmlize org-cliplink org-contrib org-download org-mime org-pomodoro alert log4e gntp org-present org-category-capture org-rich-yank orgit-forge orgit adoc-mode dune flycheck-ocaml merlin-company merlin-eldoc merlin-iedit merlin ocamlformat ocp-indent utop tuareg caml forge yaml ghub closql emacsql treepy git-link git-messenger git-modes git-timemachine gitignore-templates smeargle treemacs-magit magit magit-section git-commit with-editor transient ac-ispell auto-yasnippet fuzzy ivy-yasnippet yasnippet-snippets evil-snipe helm wfnames helm-core exec-path-from-shell esh-help eshell-prompt-extras eshell-z multi-term multi-vterm shell-pop terminal-here vterm xterm-color fzf pdf-view-restore tablist counsel-projectile ivy-avy ivy-hydra ivy-purpose ivy-xref smex wgrep pdf-tools attrap cmm-mode company-cabal counsel-gtags counsel swiper ivy dante lcr company eldoc xref flycheck-haskell ggtags haskell-snippets yasnippet helm-gtags helm-hoogle hindent hlint-refactor lsp-haskell haskell-mode lsp-mode markdown-mode ws-butler writeroom-mode winum which-key volatile-highlights vim-powerline vi-tilde-fringe uuidgen use-package undo-tree treemacs-projectile treemacs-persp treemacs-icons-dired treemacs-evil toc-org term-cursor symon symbol-overlay string-inflection string-edit spacemacs-whitespace-cleanup spacemacs-purpose-popwin spaceline-all-the-icons space-doc restart-emacs request rainbow-delimiters quickrun popwin pcre2el password-generator paradox overseer org-superstar open-junk-file nameless multi-line macrostep lorem-ipsum link-hint inspector info+ indent-guide hybrid-mode hungry-delete holy-mode hl-todo highlight-parentheses highlight-numbers highlight-indentation hide-comnt help-fns+ helm-xref helm-themes helm-swoop helm-purpose helm-projectile helm-org helm-mode-manager helm-descbinds helm-ag google-translate golden-ratio font-lock+ flycheck-package flycheck-elsa flx-ido fancy-battery eyebrowse expand-region evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-textobj-line evil-surround evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state evil-lion evil-indent-plus evil-iedit-state evil-goggles evil-exchange evil-evilified-state evil-escape evil-ediff evil-easymotion evil-collection evil-cleverparens evil-args evil-anzu eval-sexp-fu emr elisp-slime-nav elisp-def editorconfig dumb-jump drag-stuff dotenv-mode dired-quick-sort diminish devdocs define-word column-enforce-mode clean-aindent-mode centered-cursor-mode auto-highlight-symbol auto-compile aggressive-indent ace-link ace-jump-helm-line)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
