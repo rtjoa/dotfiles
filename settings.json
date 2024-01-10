@@ -1,0 +1,19 @@
+{
+    "vim.useSystemClipboard": true,
+    "vim.sneak": true,
+    "vim.easymotion": true,
+    "editor.cursorSurroundingLines": 5,
+    "editor.rulers": [
+        80
+    ],
+    "editor.useTabStops": false,
+    "editor.minimap.enabled": false,
+    "terminal.integrated.mouseWheelScrollSensitivity": 0.2,
+    "workbench.list.smoothScrolling": true,
+    "editor.smoothScrolling": true,
+    "workbench.list.mouseWheelScrollSensitivity": 0.5,
+    "vim.handleKeys": {
+        "<C-j>": false,
+        "<C-b>": false
+    }
+}
