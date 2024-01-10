@@ -8,12 +8,16 @@
     ],
     "editor.useTabStops": false,
     "editor.minimap.enabled": false,
+    "editor.mouseWheelScrollSensitivity": 0.5,
+    "terminal.integrated.scrollback": 100000,
     "terminal.integrated.mouseWheelScrollSensitivity": 0.2,
     "workbench.list.smoothScrolling": true,
     "editor.smoothScrolling": true,
     "workbench.list.mouseWheelScrollSensitivity": 0.5,
+    "workbench.colorTheme": "Monokai",
     "vim.handleKeys": {
         "<C-j>": false,
-        "<C-b>": false
-    }
+        "<C-b>": false,
+    },
+    "editor.suggestSelection": "first"
 }
