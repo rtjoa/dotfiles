@@ -2,6 +2,8 @@
 # configure zsh prompt
 #######################
 
+setopt inc_append_history_time # see command runtimes with history -D
+
 autoload -Uz vcs_info
 zstyle ':vcs_info:*' formats       \
     '%F{35}[%b]%f'
