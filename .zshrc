@@ -64,6 +64,16 @@ tcode() {
 	fi
 }
 
+function trash() {
+  now=$(date "+%Y-%m-%d--%H-%M-%S")
+  mkdir /tmp/$now
+  mv $@ /tmp/$now
+  echo "Moved to /tmp/$now"
+}
+
+function ts() {
+    trash $@ 
+}
 
 #######################
 # git config
