@@ -596,6 +596,78 @@ This function is called at the very end of Spacemacs startup, after layer
 configuration.
 Put your configuration code here, except for variables that should be set
 before packages are loaded."
+
+
+
+(defun get-effective-indentation ()
+  "Get the column of the first non-whitespace character on the current line."
+  (save-excursion
+    (back-to-indentation)
+    (current-column)))
+
+(defun line-empty-p ()
+  "Check if the current line is empty or contains only whitespace."
+  (save-excursion
+    (beginning-of-line)
+    (looking-at "^\\s-*$")))
+
+(defun evil-move-to-indent-helper (direction strict)
+  "Move to a line with indentation based on DIRECTION and STRICT flag."
+  (let* ((current-indent (min (current-column) (get-effective-indentation)))
+         (compare-fn (if strict #'< #'<=))
+         (move-fn (if (eq direction 'next) #'forward-line #'forward-line-backwards))
+         (start-point (point))
+         found)
+    (save-excursion
+      (while (and (not found) (funcall move-fn 1))
+        (unless (line-empty-p)
+          (when (funcall compare-fn (get-effective-indentation) current-indent)
+            (setq found (point))))))
+    (if found
+        (progn (evil-set-jump) (goto-char found) (back-to-indentation))
+      (goto-char start-point)
+      (message "No line found with %s indentation"
+               (if strict "strictly less" "same or less")))))
+
+(defun forward-line-backwards (&optional n)
+  "Move N lines backwards (negative N moves forwards)."
+  (forward-line (- (or n 1))))
+
+(evil-define-motion evil-move-to-next-same-or-less-indent (count)
+  "Move to the next line with same or less indentation."
+  :type line
+  :jump t
+  (evil-move-to-indent-helper 'next nil))
+
+(evil-define-motion evil-move-to-previous-same-or-less-indent (count)
+  "Move to the previous line with same or less indentation."
+  :type line
+  :jump t
+  (evil-move-to-indent-helper 'previous nil))
+
+(evil-define-motion evil-move-to-next-less-indent (count)
+  "Move to the next line with strictly less indentation."
+  :type line
+  :jump t
+  (evil-move-to-indent-helper 'next t))
+
+(evil-define-motion evil-move-to-previous-less-indent (count)
+  "Move to the previous line with strictly less indentation."
+  :type line
+  :jump t
+  (evil-move-to-indent-helper 'previous t))
+
+;; Bind the motions to keys
+(define-key evil-motion-state-map (kbd "g <down>") 'evil-move-to-next-same-or-less-indent)
+(define-key evil-motion-state-map (kbd "g <up>") 'evil-move-to-previous-same-or-less-indent)
+(define-key evil-motion-state-map (kbd "g S-<down>") 'evil-move-to-next-less-indent)
+(define-key evil-motion-state-map (kbd "g S-<up>") 'evil-move-to-previous-less-indent)
+
+
+
+
+
+
   ;; (add-hook 'prog-mode-hook 'linum-on)
   ;; (add-hook 'coq-mode-hook #'opam-switch-mode)
   ;; (add-hook 'tuareg-mode-hook #'opam-switch-mode)
