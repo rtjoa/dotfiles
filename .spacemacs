@@ -598,12 +598,15 @@ Put your configuration code here, except for variables that should be set
 before packages are loaded."
 
 
-
 (defun get-effective-indentation ()
   "Get the column of the first non-whitespace character on the current line."
   (save-excursion
-    (back-to-indentation)
-    (current-column)))
+    (if (line-empty-p)
+      10000
+      (progn
+        (back-to-indentation)
+        (current-column))
+      )))
 
 (defun line-empty-p ()
   "Check if the current line is empty or contains only whitespace."
@@ -611,57 +614,80 @@ before packages are loaded."
     (beginning-of-line)
     (looking-at "^\\s-*$")))
 
-(defun evil-move-to-indent-helper (direction strict)
-  "Move to a line with indentation based on DIRECTION and STRICT flag."
-  (let* ((current-indent (min (current-column) (get-effective-indentation)))
-         (compare-fn (if strict #'< #'<=))
-         (move-fn (if (eq direction 'next) #'forward-line #'forward-line-backwards))
-         (start-point (point))
-         found)
-    (save-excursion
-      (while (and (not found) (funcall move-fn 1))
-        (unless (line-empty-p)
-          (when (funcall compare-fn (get-effective-indentation) current-indent)
-            (setq found (point))))))
-    (if found
-        (progn (evil-set-jump) (goto-char found) (back-to-indentation))
-      (goto-char start-point)
-      (message "No line found with %s indentation"
-               (if strict "strictly less" "same or less")))))
+(defun evil-move-to-indent-helper (fwd)
+  "Move until we see a line with the same or lesser indentation. Exception: if
+the next line has the same indentation, then instead of always moving one line,
+we move to the last line in the run of lines of this indentation."
+  (let* ((start-indent (get-effective-indentation))
+         (mv (if fwd #'forward-line #'forward-line-backwards))
+         (start-point (point)))
+    (evil-set-jump)
+    (if (= (save-excursion (funcall mv 1) (get-effective-indentation))
+           start-indent)
+      ; Action 1: go to end of run of same indentation
+      (while (= (save-excursion (funcall mv 1) (get-effective-indentation))
+                start-indent)
+        (funcall mv 1))
+      ; Else, go to first line with <= indentation
+      (progn
+        (while (> (save-excursion (funcall mv 1) (get-effective-indentation))
+                   start-indent)
+          (funcall mv 1))
+        (funcall mv 1)))
+    (back-to-indentation)))
+
+(defun evil-move-to-indent-out-helper (fwd)
+  "Move until we see a line with lesser indentation."
+  (let* ((start-indent (get-effective-indentation))
+         (mv (if fwd #'forward-line #'forward-line-backwards))
+         (start-point (point)))
+    (if (= start-indent 0)
+      (evil-move-to-indent-helper fwd)
+      (progn
+        (evil-set-jump)
+        (while (>= (save-excursion (funcall mv 1) (get-effective-indentation))
+                    start-indent)
+          (funcall mv 1))
+        (funcall mv 1)
+        (back-to-indentation)))))
 
 (defun forward-line-backwards (&optional n)
   "Move N lines backwards (negative N moves forwards)."
   (forward-line (- (or n 1))))
 
-(evil-define-motion evil-move-to-next-same-or-less-indent (count)
-  "Move to the next line with same or less indentation."
+(evil-define-motion evil-jump-down (count)
+  "Move to the next line with same or less indentation, or skip a run of
+equally-indented lines."
   :type line
   :jump t
-  (evil-move-to-indent-helper 'next nil))
+  (evil-move-to-indent-helper t))
 
-(evil-define-motion evil-move-to-previous-same-or-less-indent (count)
-  "Move to the previous line with same or less indentation."
+(evil-define-motion evil-jump-up (count)
+  "Move to the previous line with same or less indentation, or skip a run of
+equally-indented lines."
   :type line
   :jump t
-  (evil-move-to-indent-helper 'previous nil))
+  (evil-move-to-indent-helper nil))
 
-(evil-define-motion evil-move-to-next-less-indent (count)
-  "Move to the next line with strictly less indentation."
+(evil-define-motion evil-jump-down-out (count)
+  "Move to the next line with less indentation."
   :type line
   :jump t
-  (evil-move-to-indent-helper 'next t))
+  (evil-move-to-indent-out-helper t))
 
-(evil-define-motion evil-move-to-previous-less-indent (count)
-  "Move to the previous line with strictly less indentation."
+(evil-define-motion evil-jump-up-out (count)
+  "Move to the previous line with less indentation."
   :type line
   :jump t
-  (evil-move-to-indent-helper 'previous t))
+  (evil-move-to-indent-out-helper nil))
 
-;; Bind the motions to keys
-(define-key evil-motion-state-map (kbd "g <down>") 'evil-move-to-next-same-or-less-indent)
-(define-key evil-motion-state-map (kbd "g <up>") 'evil-move-to-previous-same-or-less-indent)
-(define-key evil-motion-state-map (kbd "g S-<down>") 'evil-move-to-next-less-indent)
-(define-key evil-motion-state-map (kbd "g S-<up>") 'evil-move-to-previous-less-indent)
+(define-key evil-motion-state-map (kbd "S-<down>") 'evil-jump-down)
+(define-key evil-motion-state-map (kbd "S-<up>") 'evil-jump-up)
+
+(define-key evil-motion-state-map (kbd "g j") 'evil-jump-down-out)
+(define-key evil-motion-state-map (kbd "g k") 'evil-jump-up-out)
+
+
 
 
 
