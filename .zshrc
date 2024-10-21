@@ -85,3 +85,16 @@ git config --global alias.ci commit
 git config --global alias.st status
 
 #######################
+
+# flambda-backend setup
+
+# TODO: set $REPO
+jocaml() {
+	rlwrap $REPO/out/bin/ocaml $@
+}
+jocamlc() {
+	$REPO/out/bin/ocamlc $@
+}
+export INSTALL_DIR=$REPO/out
+alias configure="autoconf && ./configure --enable-ocamltest --enable-warn-error --prefix=$INSTALL_DIR"
+alias configure5="autoconf && ./configure --enable-ocamltest --enable-warn-error --enable-runtime5 --prefix=$INSTALL_DIR"
