@@ -694,6 +694,118 @@ equally-indented lines."
 
 
 
+
+(defun my/magit-status-default ()
+  "Open magit-status, defaulting to $REPO if not in a git repository"
+  (interactive)
+  (if (magit-git-repo-p default-directory)
+      (magit-status)
+    (magit-status (getenv "REPO"))))
+
+(spacemacs/set-leader-keys "gs" 'my/magit-status-default)
+
+
+; non-resumable version
+; (spacemacs/set-leader-keys "od"
+  ; (lambda ()
+    ; (interactive)
+    ; (let* ((original-buffer (current-buffer))
+           ; (original-point (point))
+           ; (default-directory
+             ; (if (vc-git-root default-directory)
+                 ; default-directory
+               ; (getenv "REPO")))
+           ; (default-directory (or default-directory "~")))
+      ; (magit-diff-working-tree "HEAD~1")
+      ; (magit-section-show-level-4-all)
+      ; (let ((selection
+             ; (unwind-protect
+                 ; (progn
+                   ; (condition-case nil
+                       ; (progn
+                         ; (swiper "+ ")
+                         ; (car kill-ring))
+                     ; (quit
+                      ; (switch-to-buffer original-buffer)
+                      ; (goto-char original-point)
+                      ; (keyboard-quit))))))
+            ; (line-pos (- (line-number-at-pos (point))
+                        ; (line-number-at-pos (window-start)))))
+        ; (when selection  ; only proceed if we didn't quit
+          ; (call-interactively #'magit-diff-visit-worktree-file)
+          ; (recenter line-pos))))))
+
+; resumable version
+(let ((last-diff-buffer nil))
+
+  (defun my/diff-search ()
+    (interactive)
+    (let* ((original-buffer (current-buffer))
+           (original-point (point))
+           (default-directory
+             (if (vc-git-root default-directory)
+                 default-directory
+               (getenv "REPO")))
+           (default-directory (or default-directory "~")))
+      (magit-diff-working-tree "HEAD~1")
+      (magit-section-show-level-4-all)
+      (setq last-diff-buffer (current-buffer))
+      (let ((selection
+             (unwind-protect
+                 (progn
+                   (condition-case nil
+                       (progn
+                         (swiper "\\+ ")
+                         (car kill-ring))
+                     (quit
+                      (switch-to-buffer original-buffer)
+                      (goto-char original-point)
+                      (keyboard-quit))))))
+            (line-pos (- (line-number-at-pos (point))
+                        (line-number-at-pos (window-start)))))
+        (when selection  ; only proceed if we didn't quit
+          (call-interactively #'magit-diff-visit-worktree-file)
+          (recenter line-pos)))))
+
+  (defun my/resume-diff-search ()
+    (interactive)
+    (if (not last-diff-buffer)
+        (my/diff-search)
+      (let* ((original-buffer (current-buffer))
+             (original-point (point)))
+        (switch-to-buffer last-diff-buffer)
+        (let ((selection
+               (unwind-protect
+                   (progn
+                     (condition-case nil
+                         (progn
+                           (ivy-resume 'swiper)
+                           (car kill-ring))
+                       (quit
+                        (switch-to-buffer original-buffer)
+                        (goto-char original-point)
+                        (keyboard-quit))))))
+              (line-pos (- (line-number-at-pos (point))
+                          (line-number-at-pos (window-start)))))
+          (when selection
+            (call-interactively #'magit-diff-visit-worktree-file)
+            (recenter line-pos))))))
+
+  (spacemacs/set-leader-keys "od" #'my/diff-search)
+  (spacemacs/set-leader-keys "ol" #'my/resume-diff-search))
+
+
+
+
+
+
+
+
+
+
+
+
+
   ;; (add-hook 'prog-mode-hook 'linum-on)
   ;; (add-hook 'coq-mode-hook #'opam-switch-mode)
   ;; (add-hook 'tuareg-mode-hook #'opam-switch-mode)
