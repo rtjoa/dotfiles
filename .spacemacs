@@ -749,6 +749,7 @@ equally-indented lines."
            (default-directory (or default-directory "~")))
       (magit-diff-working-tree "HEAD~1")
       (magit-section-show-level-4-all)
+      (goto-char (point-min))  ; Start at the top
       (setq last-diff-buffer (current-buffer))
       (let ((selection
              (unwind-protect
